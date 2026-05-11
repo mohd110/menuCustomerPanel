@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>The Golden Saffron - Room Service Menu</title>
+  
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  
+  <!-- Icons -->
+  <script src="https://unpkg.com/@phosphor-icons/web"></script>
+  
+  <link rel="stylesheet" href="css/menu.css">
+</head>
+<body>
+
+  <div class="app-container">
+    
+    <!-- ==============================================
+         1. MAIN MENU SECTION 
+         ============================================== -->
+    <div id="main-menu-section" class="section active">
+      
+      <!-- Top Bar -->
+      <header>
+        <div class="logo">
+          <img src="assets/images/logo.png" alt="The Golden Saffron Logo" class="logo-img">
+        </div>
+      </header>
+
+      <!-- Horizontal scroll categories -->
+      <div id="category-container" class="categories-nav">
+        <!-- Rendered via JS -->
+      </div>
+
+      <!-- Section Title Box -->
+      <div class="section-header">
+        <h2 id="current-category-title">Snacks</h2>
+      </div>
+
+      <!-- Food Items Grid -->
+      <div id="items-container">
+        <!-- Cards injected via JS -->
+      </div>
+
+
+      <!-- Floating Call Waiter Button -->
+      <button id="call-waiter-btn" class="call-waiter-btn" aria-label="Call Waiter">
+        <i class="ph-fill ph-bell-ringing"></i>
+        <span>Call Waiter</span>
+      </button>
+
+      <!-- Toast Notification -->
+      <div id="waiter-toast" class="waiter-toast">
+        <i class="ph-fill ph-check-circle"></i>
+        <span>Waiter has been notified!</span>
+      </div>
+
+    </div>
+
+    <!-- ==============================================
+         2. CHECKOUT SECTION
+         ============================================== -->
+    <div id="checkout-section" class="section">
+      
+      <!-- Top Header -->
+      <div class="checkout-header">
+        <button id="back-to-menu" aria-label="Back">
+          <i class="ph ph-arrow-left"></i>
+        </button>
+        <h1>Checkout</h1>
+        <span class="cf">CF</span>
+      </div>
+
+      <!-- Banner -->
+      <div class="checkout-banner">
+        <div class="checkout-banner-content">
+          <p>CONFIRMING</p>
+          <h2>Your Order</h2>
+        </div>
+      </div>
+
+      <!-- Order Summary Card -->
+      <div class="checkout-card">
+        <div id="checkout-items">
+          <!-- Injected via JS -->
+        </div>
+        
+        <div class="checkout-summary">
+          <span>TOTAL AMOUNT</span>
+          <h3 id="checkout-total">₹0</h3>
+        </div>
+      </div>
+
+      <!-- Delivery Details Card -->
+      <div class="checkout-card">
+        <h3 class="form-title">Delivery Details</h3>
+
+        <div class="form-group">
+          <label>TOWER</label>
+          <div class="tower-selection">
+            <input type="radio" id="tower-b1" name="tower" value="B1" checked>
+            <label for="tower-b1" class="tower-btn">B1</label>
+            
+            <input type="radio" id="tower-b2" name="tower" value="B2">
+            <label for="tower-b2" class="tower-btn">B2</label>
+          </div>
+        </div>
+        
+        <div class="form-group">
+          <label>ROOM NUMBER</label>
+          <div class="input-wrapper">
+            <i class="ph-fill ph-lock-key input-icon"></i>
+            <input type="text" id="room-input" placeholder="e.g. 204" required>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label>PHONE NUMBER</label>
+          <div class="input-wrapper">
+            <i class="ph-fill ph-flag input-icon"></i>
+            <span style="margin-right: 8px; color: #1a291a; font-weight: 500;">+91</span>
+            <input type="tel" id="phone-input" placeholder="Enter number" required>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label>SPECIAL INSTRUCTIONS</label>
+          <div class="input-wrapper" style="border-bottom: none;">
+            <input type="text" id="notes-input" placeholder="Any allergies or requests?">
+          </div>
+        </div>
+      </div>
+
+      <!-- Footer Branding -->
+      <div class="watermark">
+        <svg viewBox="0 0 24 24"><path d="M17.5,2C15.6,2,13.8,2.7,12.5,3.9c0,0-0.1,0.1-0.1,0.1c-0.1-0.1-0.1-0.1-0.1-0.1C10.9,2.7,9.1,2,7.2,2C3.2,2,0.5,5.8,1.4,9.7 c0.8,3.5,3.7,6.3,7.1,7.2c1.4,0.4,2.9,0.3,4.2-0.3c1.3,0.6,2.8,0.7,4.2,0.3c3.4-1,6.3-3.7,7.1-7.2C24.9,5.8,21.5,2,17.5,2z"></path></svg>
+        <p>Nurtured by The Golden Saffron</p>
+      </div>
+
+      <!-- Sticky Place Order Button -->
+      <div class="checkout-action">
+        <button id="place-order-btn">
+          Place Order
+        </button>
+      </div>
+
+    </div>
+
+    <!-- ==============================================
+         3. SUCCESS MODAL (Overlay)
+         ============================================== -->
+    <div id="success-modal" class="modal-overlay">
+      <div class="modal-content">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" fill="currentColor">
+          <path d="M128,24A104,104,0,1,0,232,128,104.11,104.11,0,0,0,128,24Zm45.66,85.66-56,56a8,8,0,0,1-11.32,0l-24-24a8,8,0,0,1,11.32-11.32L112,148.69l50.34-50.35a8,8,0,0,1,11.32,11.32Z"></path>
+        </svg>
+        <h3>Order Received!</h3>
+        <p>Our kitchen is preparing your order. It will be delivered to your room shortly.</p>
+      </div>
+    </div>
+
+    <!-- ==============================================
+         4. DISH DETAIL MODAL
+         ============================================== -->
+    <div id="dish-modal" class="modal-overlay">
+      <div class="dish-modal-content">
+        <div class="dish-modal-close">
+          <i class="ph ph-x"></i>
+        </div>
+        <div id="dish-modal-img" class="dish-modal-img"></div>
+        <div class="dish-modal-info">
+          <h2 id="dish-modal-title">Dish Name</h2>
+          <div class="dish-modal-tags">
+            <span id="dish-modal-cal"><i class="ph-fill ph-fire"></i> 350 kcal</span>
+            <span><i class="ph-fill ph-clock"></i> 10-15 min prep</span>
+          </div>
+          <p id="dish-modal-desc">Dish description goes here.</p>
+          <div class="dish-modal-bottom">
+            <h3 id="dish-modal-price">₹0</h3>
+            <button id="dish-modal-add" class="add-to-order-btn">Add item</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Scripts -->
+  <script src="js/config.js"></script>
+  <script src="js/menu-data.js"></script>
+  <script src="js/cart.js"></script>
+  <script src="js/order.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>

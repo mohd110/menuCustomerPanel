@@ -9,6 +9,17 @@ document.addEventListener('DOMContentLoaded', () => {
   const currentCategoryTitle = document.getElementById('current-category-title');
   const callWaiterBtn = document.getElementById('call-waiter-btn');
   const waiterToast = document.getElementById('waiter-toast');
+  const statusBanner = document.getElementById('status-banner');
+  const statusText = document.getElementById('status-text');
+
+  // Modal Elements
+  const waiterModal = document.getElementById('call-waiter-modal');
+  const closeWaiterModal = document.getElementById('close-waiter-modal');
+  const submitWaiterCall = document.getElementById('submit-waiter-call');
+  const waiterTableInput = document.getElementById('waiter-table-input');
+  const waiterNameInput = document.getElementById('waiter-name-input');
+  const waiterPhoneInput = document.getElementById('waiter-phone-input');
+  const waiterGuestInput = document.getElementById('waiter-guest-input');
 
   const MACRO_CATEGORIES = [
     {
@@ -54,11 +65,61 @@ document.addEventListener('DOMContentLoaded', () => {
   let activeMacroCategoryIndex = 0;
 
   // === Initialize ===
-  function init() {
+  async function init() {
     renderCategories();
     renderItems(activeMacroCategoryIndex);
     setupEventListeners();
     setupDragScroll(categoryContainer);
+
+    // Check if there is a table in the URL and if it matches the current session
+    const urlParams = new URLSearchParams(window.location.search);
+    let tableId = urlParams.get('table');
+    
+    if (tableId) {
+      if (!tableId.toString().startsWith('T-')) {
+        const num = parseInt(tableId, 10);
+        if (!isNaN(num)) tableId = `T-${num.toString().padStart(2, '0')}`;
+      }
+      
+      const { data: tableData } = await window.supabaseClient
+        .from('restaurant_tables')
+        .select('id')
+        .eq('table_number', tableId)
+        .single();
+        
+      if (tableData) {
+        // If current session exists but belongs to a different table, clear it!
+        if (window.currentSession && window.currentSession.table_id !== tableData.id) {
+          if (typeof window.clearSession === 'function') {
+            window.clearSession();
+          } else if (typeof clearSession === 'function') {
+            clearSession();
+          }
+        }
+        
+        // If we don't have a session now (either cleared or none existed), fetch active session for this table
+        if (!window.currentSession) {
+          const { data: sessionData } = await window.supabaseClient
+            .from('customer_sessions')
+            .select('*')
+            .eq('table_id', tableData.id)
+            .eq('session_status', 'active')
+            .order('started_at', { ascending: false })
+            .limit(1)
+            .maybeSingle(); 
+            
+          if (sessionData) {
+            window.saveSession(sessionData);
+          }
+        }
+      }
+    }
+
+    // Initialize Supabase realtime if session exists
+    if (window.currentSession) {
+      subscribeToWaiterStatus();
+      subscribeToOrderUpdates();
+    }
   }
 
   // === Mouse-drag scroll for category nav (desktop) ===
@@ -255,26 +316,302 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // === Event Listeners ===
   let toastTimer = null;
+  let callCooldown = false;
+  let waiterCallSubscription = null;
+  let orderSubscription = null;
 
   function setupEventListeners() {
-    // Call Waiter button
-    callWaiterBtn.addEventListener('click', () => {
-      // Bell shake animation
-      callWaiterBtn.classList.add('ringing');
-      callWaiterBtn.addEventListener('animationend', () => {
-        callWaiterBtn.classList.remove('ringing');
-      }, { once: true });
+    // Call Waiter button - Opens Modal if no session, or directly calls if session exists
+    callWaiterBtn.addEventListener('click', async () => {
+      if (callCooldown) return;
 
-      // Show toast
-      waiterToast.querySelector('span').textContent = 'Waiter has been notified!';
-      waiterToast.classList.add('show');
+      if (!window.currentSession) {
+        // Dynamically check if the table already has an active session before showing the modal
+        const urlParams = new URLSearchParams(window.location.search);
+        let tableId = urlParams.get('table');
+        
+        if (tableId) {
+          // Format tableId if it's just a number
+          if (!tableId.toString().startsWith('T-')) {
+            const num = parseInt(tableId, 10);
+            if (!isNaN(num)) tableId = `T-${num.toString().padStart(2, '0')}`;
+          }
 
-      // Clear any existing timer and hide after 3 seconds
-      if (toastTimer) clearTimeout(toastTimer);
-      toastTimer = setTimeout(() => {
-        waiterToast.classList.remove('show');
-      }, 3000);
+          // Fetch actual table UUID and then check for active session
+          const { data: tableData } = await window.supabaseClient
+            .from('restaurant_tables')
+            .select('id')
+            .eq('table_number', tableId)
+            .single();
+
+          if (tableData) {
+            const { data: sessionData } = await window.supabaseClient
+              .from('customer_sessions')
+              .select('*')
+              .eq('table_id', tableData.id)
+              .eq('session_status', 'active')
+              .order('started_at', { ascending: false })
+              .limit(1)
+              .maybeSingle();
+
+            if (sessionData) {
+              window.saveSession(sessionData);
+              subscribeToWaiterStatus();
+              subscribeToOrderUpdates();
+            }
+          }
+        }
+      }
+
+      if (!window.currentSession) {
+        // Show modal to collect details if STILL no session
+        waiterModal.classList.add('active');
+      } else {
+        // Direct call
+        await createWaiterCall();
+      }
     });
+
+    // Close Waiter Modal
+    closeWaiterModal.addEventListener('click', () => {
+      waiterModal.classList.remove('active');
+    });
+
+    const placeOrderBtn = document.getElementById('place-order-btn');
+    if (placeOrderBtn) {
+      placeOrderBtn.addEventListener('click', async () => {
+        if (!window.currentSession) {
+          waiterModal.classList.add('active');
+          return;
+        }
+
+        const items = getCartItems();
+        if (items.length === 0) return;
+
+        placeOrderBtn.textContent = 'Placing Order...';
+        placeOrderBtn.disabled = true;
+
+        const total = getCartTotal();
+        const res = await placeOrder({
+          items,
+          total,
+          tax: total * 0.05, // Example 5% tax
+          notes: document.getElementById('notes-input')?.value || ''
+        });
+
+        if (res.success) {
+          showToast('Order Placed Successfully!');
+          clearCart();
+          document.getElementById('success-modal').classList.add('active');
+          setTimeout(() => {
+            document.getElementById('success-modal').classList.remove('active');
+            if (typeof hideCheckout === 'function') hideCheckout();
+          }, 3000);
+        } else {
+          alert('Error: ' + res.error);
+        }
+
+        placeOrderBtn.textContent = 'Place Order';
+        placeOrderBtn.disabled = false;
+      });
+    }
+
+    // Submit Waiter Call Form
+    submitWaiterCall.addEventListener('click', async () => {
+      // Extract table ID from URL (e.g. ?table=5)
+      const urlParams = new URLSearchParams(window.location.search);
+      let tableId = urlParams.get('table');
+      
+      // Fallback if no table in URL (for dev/testing)
+      if (!tableId) {
+        tableId = waiterTableInput.value;
+      }
+
+      // Format tableId to match database format "T-XX" if only a number was provided
+      if (tableId && !tableId.toString().startsWith('T-')) {
+        const num = parseInt(tableId, 10);
+        if (!isNaN(num)) {
+          tableId = `T-${num.toString().padStart(2, '0')}`;
+        }
+      }
+
+      const customerName = waiterNameInput.value;
+      const phoneNumber = waiterPhoneInput.value;
+      const guestCount = parseInt(waiterGuestInput.value) || 1;
+
+      if (!tableId || !customerName || !phoneNumber) {
+        alert("Please fill in all required fields.");
+        return;
+      }
+
+      submitWaiterCall.textContent = "Creating Session...";
+      submitWaiterCall.disabled = true;
+
+      // 0. Fetch actual table UUID from restaurant_tables based on table number
+      const { data: tableData, error: tableError } = await window.supabaseClient
+        .from('restaurant_tables')
+        .select('id')
+        .eq('table_number', tableId)
+        .single();
+
+      if (tableError || !tableData) {
+        console.error("Table Error:", tableError);
+        alert("Invalid table number. Please ensure the QR code is correct.");
+        submitWaiterCall.textContent = "Call Now";
+        submitWaiterCall.disabled = false;
+        return;
+      }
+      
+      const realTableId = tableData.id;
+
+      // 1. Create or Find Session in Supabase
+      const { data: sessionData, error: sessionError } = await window.supabaseClient
+        .from('customer_sessions')
+        .insert({
+          table_id: realTableId, 
+          customer_name: customerName,
+          phone_number: phoneNumber,
+          guest_count: guestCount,
+          session_status: 'active'
+        })
+        .select()
+        .single();
+
+      if (sessionError) {
+        console.error("Session Error:", sessionError);
+        alert("Failed to create session.");
+        submitWaiterCall.textContent = "Call Now";
+        submitWaiterCall.disabled = false;
+        return;
+      }
+
+      // Save locally
+      window.saveSession(sessionData);
+
+      // 2. Update table status to occupied so dashboard reflects it
+      await window.supabaseClient
+        .from('restaurant_tables')
+        .update({ status: 'occupied' })
+        .eq('id', realTableId);
+
+      // Close modal
+      waiterModal.classList.remove('active');
+      submitWaiterCall.textContent = "Call Now";
+      submitWaiterCall.disabled = false;
+
+      // Initialize Realtime
+      subscribeToWaiterStatus();
+      subscribeToOrderUpdates();
+
+      // 3. Create Waiter Call
+      await createWaiterCall();
+    });
+  }
+
+  async function createWaiterCall() {
+    if (!window.currentSession) return;
+    
+    callWaiterBtn.classList.add('ringing');
+    callWaiterBtn.addEventListener('animationend', () => {
+      callWaiterBtn.classList.remove('ringing');
+    }, { once: true });
+
+    // Insert to Supabase
+    const { error } = await window.supabaseClient
+      .from('waiter_calls')
+      .insert({
+        session_id: window.currentSession.id,
+        table_id: window.currentSession.table_id,
+        customer_name: window.currentSession.customer_name,
+        request_status: 'pending'
+      });
+
+    if (error) {
+      console.error("Call Error:", error);
+      showToast("Failed to call waiter.");
+      return;
+    }
+
+    showToast("Waiter has been notified!");
+    startCooldown();
+  }
+
+  function startCooldown() {
+    callCooldown = true;
+    callWaiterBtn.classList.add('disabled');
+    callWaiterBtn.querySelector('span').textContent = 'Wait 30s...';
+    
+    let time = 30;
+    const interval = setInterval(() => {
+      time--;
+      if (time <= 0) {
+        clearInterval(interval);
+        callCooldown = false;
+        callWaiterBtn.classList.remove('disabled');
+        callWaiterBtn.querySelector('span').textContent = 'Call Waiter';
+      } else {
+        callWaiterBtn.querySelector('span').textContent = `Wait ${time}s...`;
+      }
+    }, 1000);
+  }
+
+  function showToast(msg) {
+    waiterToast.querySelector('span').textContent = msg;
+    waiterToast.classList.add('show');
+    if (toastTimer) clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => {
+      waiterToast.classList.remove('show');
+    }, 3000);
+  }
+
+  function showBanner(msg, isPersistent = false) {
+    statusText.textContent = msg;
+    statusBanner.classList.remove('hidden');
+    if (!isPersistent) {
+      setTimeout(() => statusBanner.classList.add('hidden'), 5000);
+    }
+  }
+
+  function subscribeToWaiterStatus() {
+    if (waiterCallSubscription) window.supabaseClient.removeChannel(waiterCallSubscription);
+    
+    waiterCallSubscription = window.supabaseClient.channel('custom-waiter-channel')
+      .on('postgres_changes', { 
+        event: 'UPDATE', 
+        schema: 'public', 
+        table: 'waiter_calls',
+        filter: `session_id=eq.${window.currentSession.id}`
+      }, (payload) => {
+        const newRecord = payload.new;
+        if (newRecord.assigned_waiter_id && newRecord.request_status === 'assigned') {
+          showBanner("A waiter is on the way to your table!", true);
+        } else if (newRecord.request_status === 'completed') {
+          statusBanner.classList.add('hidden');
+        }
+      })
+      .subscribe();
+  }
+
+  function subscribeToOrderUpdates() {
+    if (orderSubscription) window.supabaseClient.removeChannel(orderSubscription);
+    
+    orderSubscription = window.supabaseClient.channel('custom-order-channel')
+      .on('postgres_changes', {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'orders',
+        filter: `session_id=eq.${window.currentSession.id}`
+      }, (payload) => {
+        const status = payload.new.order_status;
+        if (status === 'preparing') {
+          showBanner("Your order is now being prepared in the kitchen.");
+        } else if (status === 'ready') {
+          showBanner("Your order is ready and will be served shortly!", true);
+        } else if (status === 'delivered') {
+          statusBanner.classList.add('hidden');
+        }
+      })
+      .subscribe();
   }
 
   // === Dish Modal logic ===

@@ -833,3 +833,48 @@ input::placeholder { color: var(--outline-subtle); }
 .add-to-order-btn:active {
   transform: scale(0.95);
 }
+
+/* =====================================================
+   STATUS BANNER & MODAL ADDITIONS
+   ===================================================== */
+.status-banner {
+  position: fixed;
+  top: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 60;
+  background: var(--primary-rich);
+  color: var(--text-on-primary);
+  padding: 10px 20px;
+  border-radius: var(--radius-full);
+  font-family: var(--font-sans);
+  font-size: 14px;
+  font-weight: 600;
+  box-shadow: 0 4px 20px rgba(102, 73, 48, 0.40);
+  transition: opacity 0.3s ease, transform 0.3s ease;
+  pointer-events: none;
+}
+
+.status-banner.hidden {
+  opacity: 0;
+  transform: translateX(-50%) translateY(-20px);
+}
+
+.status-content {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.status-content i {
+  font-size: 18px;
+  color: var(--primary-light);
+}
+
+.call-waiter-btn.disabled {
+  background: #a9a9a9;
+  box-shadow: none;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+

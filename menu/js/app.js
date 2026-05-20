@@ -71,6 +71,9 @@ document.addEventListener('DOMContentLoaded', () => {
     setupEventListeners();
     setupDragScroll(categoryContainer);
 
+    // Fetch and populate tables dropdown
+    await loadTablesDropdown();
+
     // Check if there is a table in the URL and if it matches the current session
     const urlParams = new URLSearchParams(window.location.search);
     let tableId = urlParams.get('table');
@@ -119,6 +122,40 @@ document.addEventListener('DOMContentLoaded', () => {
     if (window.currentSession) {
       subscribeToWaiterStatus();
       subscribeToOrderUpdates();
+    }
+  }
+
+  async function loadTablesDropdown() {
+    try {
+      const { data, error } = await window.supabaseClient
+        .from('restaurant_tables')
+        .select('*')
+        .order('table_number');
+
+      if (error) throw error;
+
+      if (data && waiterTableInput) {
+        waiterTableInput.innerHTML = '<option value="">Select Table</option>';
+        data.forEach(table => {
+          const option = document.createElement('option');
+          option.value = table.table_number;
+          option.textContent = `Table ${table.table_number.replace('T-', '')}`;
+          waiterTableInput.appendChild(option);
+        });
+
+        // Pre-select if table is in URL
+        const urlParams = new URLSearchParams(window.location.search);
+        let urlTable = urlParams.get('table');
+        if (urlTable) {
+          if (!urlTable.toString().startsWith('T-')) {
+            const num = parseInt(urlTable, 10);
+            if (!isNaN(num)) urlTable = `T-${num.toString().padStart(2, '0')}`;
+          }
+          waiterTableInput.value = urlTable;
+        }
+      }
+    } catch (err) {
+      console.error('Error loading tables:', err);
     }
   }
 
@@ -418,14 +455,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Submit Waiter Call Form
     submitWaiterCall.addEventListener('click', async () => {
-      // Extract table ID from URL (e.g. ?table=5)
-      const urlParams = new URLSearchParams(window.location.search);
-      let tableId = urlParams.get('table');
-      
-      // Fallback if no table in URL (for dev/testing)
-      if (!tableId) {
-        tableId = waiterTableInput.value;
-      }
+      // Read the table ID from the dropdown selection
+      let tableId = waiterTableInput.value;
 
       // Format tableId to match database format "T-XX" if only a number was provided
       if (tableId && !tableId.toString().startsWith('T-')) {

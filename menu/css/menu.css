@@ -104,7 +104,44 @@ header {
   background: var(--bg);
   border-bottom: 1px solid var(--outline-subtle);
   z-index: 10;
+  position: relative;
 }
+
+.wishlist-nav-btn {
+  position: absolute;
+  right: 20px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-full);
+  background: var(--card-bg);
+  border: 1px solid var(--outline-subtle);
+  color: var(--primary-rich);
+  font-size: 19px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.wishlist-badge {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  border-radius: var(--radius-full);
+  background: var(--error);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.wishlist-badge.hidden { display: none; }
 
 .logo { text-align: center; }
 
@@ -838,6 +875,120 @@ input::placeholder { color: var(--outline-subtle); }
 .add-to-order-btn:active {
   transform: scale(0.95);
 }
+
+.dish-modal-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.wishlist-btn {
+  width: 48px;
+  height: 48px;
+  flex-shrink: 0;
+  border-radius: var(--radius-full);
+  border: 1px solid var(--outline-subtle);
+  background: var(--card-bg);
+  color: var(--text-muted);
+  font-size: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+
+.wishlist-btn.active {
+  color: var(--error);
+  border-color: var(--error);
+}
+
+.wishlist-btn:active {
+  transform: scale(0.9);
+}
+
+.wishlist-items-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-top: 20px;
+}
+
+.wishlist-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.wishlist-item-img {
+  width: 64px;
+  height: 64px;
+  border-radius: var(--radius-md);
+  background-size: cover;
+  background-position: center;
+  flex-shrink: 0;
+}
+
+.wishlist-item-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.wishlist-item-info h4 {
+  font-family: var(--font-display);
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.wishlist-item-info .price {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--primary-rich);
+}
+
+.wishlist-item-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.wishlist-remove-btn,
+.wishlist-add-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-full);
+  font-size: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.wishlist-remove-btn {
+  background: var(--card-bg);
+  border: 1px solid var(--error);
+  color: var(--error);
+}
+
+.wishlist-add-btn {
+  background: var(--primary-rich);
+  color: var(--text-on-primary);
+  border: none;
+}
+
+.wishlist-empty-state {
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 14px;
+  line-height: 1.6;
+  padding: 32px 8px;
+}
+
+.wishlist-empty-state.hidden { display: none; }
 
 /* =====================================================
    STATUS BANNER & MODAL ADDITIONS

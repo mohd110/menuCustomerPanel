@@ -32,6 +32,10 @@
         <div class="logo">
           <img src="assets/images/logo.png" alt="The Golden Saffron Logo" class="logo-img">
         </div>
+        <button id="wishlist-nav-btn" class="wishlist-nav-btn" aria-label="View Wishlist">
+          <i class="ph-fill ph-heart"></i>
+          <span id="wishlist-badge" class="wishlist-badge hidden">0</span>
+        </button>
       </header>
 
       <!-- Horizontal scroll categories -->
@@ -192,7 +196,12 @@
           <p id="dish-modal-desc">Dish description goes here.</p>
           <div class="dish-modal-bottom">
             <h3 id="dish-modal-price">₹0</h3>
-            <button id="dish-modal-add" class="add-to-order-btn">Add item</button>
+            <div class="dish-modal-actions">
+              <button id="dish-modal-wishlist" class="wishlist-btn" aria-label="Add to wishlist">
+                <i class="ph ph-heart"></i>
+              </button>
+              <button id="dish-modal-add" class="add-to-order-btn">Add item</button>
+            </div>
           </div>
         </div>
       </div>
@@ -211,16 +220,6 @@
           <p>Please provide your details so we can assist you better.</p>
           
           <div class="form-group" style="margin-top: 20px;">
-            <label>TABLE NUMBER</label>
-            <div class="input-wrapper">
-              <i class="ph-fill ph-hash input-icon"></i>
-              <select id="waiter-table-input" required>
-                <option value="">Loading tables...</option>
-              </select>
-            </div>
-          </div>
-
-          <div class="form-group">
             <label>YOUR NAME</label>
             <div class="input-wrapper">
               <i class="ph-fill ph-user input-icon"></i>
@@ -247,6 +246,29 @@
           <div class="dish-modal-bottom" style="margin-top: 20px; border-top: none; padding-top: 0;">
             <button id="submit-waiter-call" class="add-to-order-btn" style="width: 100%;">Call Now</button>
           </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ==============================================
+         6. WISHLIST MODAL
+         ============================================== -->
+    <div id="wishlist-modal" class="modal-overlay">
+      <div class="dish-modal-content" style="max-height: 85vh; overflow-y: auto;">
+        <div class="dish-modal-close" id="close-wishlist-modal">
+          <i class="ph ph-x"></i>
+        </div>
+        <div class="dish-modal-info" style="padding-top: 40px;">
+          <h2>My Wishlist</h2>
+          <p>Dishes you've saved for later.</p>
+
+          <div id="wishlist-items-list" class="wishlist-items-list">
+            <!-- Rendered via JS -->
+          </div>
+
+          <p id="wishlist-empty-state" class="wishlist-empty-state hidden">
+            Your wishlist is empty. Tap the heart icon on a dish to save it here.
+          </p>
         </div>
       </div>
     </div>

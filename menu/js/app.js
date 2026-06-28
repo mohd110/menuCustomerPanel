@@ -16,10 +16,17 @@ document.addEventListener('DOMContentLoaded', () => {
   const waiterModal = document.getElementById('call-waiter-modal');
   const closeWaiterModal = document.getElementById('close-waiter-modal');
   const submitWaiterCall = document.getElementById('submit-waiter-call');
-  const waiterTableInput = document.getElementById('waiter-table-input');
   const waiterNameInput = document.getElementById('waiter-name-input');
   const waiterPhoneInput = document.getElementById('waiter-phone-input');
   const waiterGuestInput = document.getElementById('waiter-guest-input');
+
+  // Wishlist Elements
+  const wishlistNavBtn = document.getElementById('wishlist-nav-btn');
+  const wishlistBadge = document.getElementById('wishlist-badge');
+  const wishlistModal = document.getElementById('wishlist-modal');
+  const closeWishlistModal = document.getElementById('close-wishlist-modal');
+  const wishlistItemsList = document.getElementById('wishlist-items-list');
+  const wishlistEmptyState = document.getElementById('wishlist-empty-state');
 
   const MACRO_CATEGORIES = [
     {
@@ -64,98 +71,76 @@ document.addEventListener('DOMContentLoaded', () => {
 
   let activeMacroCategoryIndex = 0;
 
+  // Table resolved from the QR/table URL param, cached for the session-creation form
+  let resolvedTableId = null;
+
+  async function resolveTableFromUrl() {
+    const urlParams = new URLSearchParams(window.location.search);
+    let tableId = urlParams.get('table');
+    if (!tableId) return null;
+
+    if (!tableId.toString().startsWith('T-')) {
+      const num = parseInt(tableId, 10);
+      if (!isNaN(num)) tableId = `T-${num.toString().padStart(2, '0')}`;
+    }
+
+    const { data: tableData } = await window.supabaseClient
+      .from('restaurant_tables')
+      .select('id')
+      .eq('table_number', tableId)
+      .single();
+
+    if (!tableData) return null;
+
+    resolvedTableId = tableData.id;
+    return tableData.id;
+  }
+
   // === Initialize ===
   async function init() {
     renderCategories();
     renderItems(activeMacroCategoryIndex);
+    renderWishlistBadge();
     setupEventListeners();
     setupDragScroll(categoryContainer);
 
-    // Fetch and populate tables dropdown
-    await loadTablesDropdown();
-
     // Check if there is a table in the URL and if it matches the current session
-    const urlParams = new URLSearchParams(window.location.search);
-    let tableId = urlParams.get('table');
-    
-    if (tableId) {
-      if (!tableId.toString().startsWith('T-')) {
-        const num = parseInt(tableId, 10);
-        if (!isNaN(num)) tableId = `T-${num.toString().padStart(2, '0')}`;
-      }
-      
-      const { data: tableData } = await window.supabaseClient
-        .from('restaurant_tables')
-        .select('id')
-        .eq('table_number', tableId)
-        .single();
-        
-      if (tableData) {
-        // If current session exists but belongs to a different table, clear it!
-        if (window.currentSession && window.currentSession.table_id !== tableData.id) {
-          if (typeof window.clearSession === 'function') {
-            window.clearSession();
-          } else if (typeof clearSession === 'function') {
-            clearSession();
-          }
+    const realTableId = await resolveTableFromUrl();
+
+    if (realTableId) {
+      // If current session exists but belongs to a different table, clear it!
+      if (window.currentSession && window.currentSession.table_id !== realTableId) {
+        if (typeof window.clearSession === 'function') {
+          window.clearSession();
+        } else if (typeof clearSession === 'function') {
+          clearSession();
         }
-        
-        // If we don't have a session now (either cleared or none existed), fetch active session for this table
-        if (!window.currentSession) {
-          const { data: sessionData } = await window.supabaseClient
-            .from('customer_sessions')
-            .select('*')
-            .eq('table_id', tableData.id)
-            .eq('session_status', 'active')
-            .order('started_at', { ascending: false })
-            .limit(1)
-            .maybeSingle(); 
-            
-          if (sessionData) {
-            window.saveSession(sessionData);
-          }
+      }
+
+      // If we don't have a session now (either cleared or none existed), fetch active session for this table
+      if (!window.currentSession) {
+        const { data: sessionData } = await window.supabaseClient
+          .from('customer_sessions')
+          .select('*')
+          .eq('table_id', realTableId)
+          .eq('session_status', 'active')
+          .order('started_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (sessionData) {
+          window.saveSession(sessionData);
         }
       }
     }
 
-    // Initialize Supabase realtime if session exists
+    // Initialize Supabase realtime if session exists, otherwise prompt the
+    // customer for their details right away so a session can be created
     if (window.currentSession) {
       subscribeToWaiterStatus();
       subscribeToOrderUpdates();
-    }
-  }
-
-  async function loadTablesDropdown() {
-    try {
-      const { data, error } = await window.supabaseClient
-        .from('restaurant_tables')
-        .select('*')
-        .order('table_number');
-
-      if (error) throw error;
-
-      if (data && waiterTableInput) {
-        waiterTableInput.innerHTML = '<option value="">Select Table</option>';
-        data.forEach(table => {
-          const option = document.createElement('option');
-          option.value = table.table_number;
-          option.textContent = `Table ${table.table_number.replace('T-', '')}`;
-          waiterTableInput.appendChild(option);
-        });
-
-        // Pre-select if table is in URL
-        const urlParams = new URLSearchParams(window.location.search);
-        let urlTable = urlParams.get('table');
-        if (urlTable) {
-          if (!urlTable.toString().startsWith('T-')) {
-            const num = parseInt(urlTable, 10);
-            if (!isNaN(num)) urlTable = `T-${num.toString().padStart(2, '0')}`;
-          }
-          waiterTableInput.value = urlTable;
-        }
-      }
-    } catch (err) {
-      console.error('Error loading tables:', err);
+    } else {
+      waiterModal.classList.add('active');
     }
   }
 
@@ -363,45 +348,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (callCooldown) return;
 
       if (!window.currentSession) {
-        // Dynamically check if the table already has an active session before showing the modal
-        const urlParams = new URLSearchParams(window.location.search);
-        let tableId = urlParams.get('table');
-        
-        if (tableId) {
-          // Format tableId if it's just a number
-          if (!tableId.toString().startsWith('T-')) {
-            const num = parseInt(tableId, 10);
-            if (!isNaN(num)) tableId = `T-${num.toString().padStart(2, '0')}`;
-          }
-
-          // Fetch actual table UUID and then check for active session
-          const { data: tableData } = await window.supabaseClient
-            .from('restaurant_tables')
-            .select('id')
-            .eq('table_number', tableId)
-            .single();
-
-          if (tableData) {
-            const { data: sessionData } = await window.supabaseClient
-              .from('customer_sessions')
-              .select('*')
-              .eq('table_id', tableData.id)
-              .eq('session_status', 'active')
-              .order('started_at', { ascending: false })
-              .limit(1)
-              .maybeSingle();
-
-            if (sessionData) {
-              window.saveSession(sessionData);
-              subscribeToWaiterStatus();
-              subscribeToOrderUpdates();
-            }
-          }
-        }
-      }
-
-      if (!window.currentSession) {
-        // Show modal to collect details if STILL no session
+        // Show modal to collect details if there's still no session
         waiterModal.classList.add('active');
       } else {
         // Direct call
@@ -455,45 +402,25 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Submit Waiter Call Form
     submitWaiterCall.addEventListener('click', async () => {
-      // Read the table ID from the dropdown selection
-      let tableId = waiterTableInput.value;
-
-      // Format tableId to match database format "T-XX" if only a number was provided
-      if (tableId && !tableId.toString().startsWith('T-')) {
-        const num = parseInt(tableId, 10);
-        if (!isNaN(num)) {
-          tableId = `T-${num.toString().padStart(2, '0')}`;
-        }
-      }
-
       const customerName = waiterNameInput.value;
       const phoneNumber = waiterPhoneInput.value;
       const guestCount = parseInt(waiterGuestInput.value) || 1;
 
-      if (!tableId || !customerName || !phoneNumber) {
+      if (!customerName || !phoneNumber) {
         alert("Please fill in all required fields.");
+        return;
+      }
+
+      // Table comes from the QR code URL, not a manual selection
+      const realTableId = resolvedTableId || await resolveTableFromUrl();
+
+      if (!realTableId) {
+        alert("Unable to detect your table. Please scan the QR code at your table to continue.");
         return;
       }
 
       submitWaiterCall.textContent = "Creating Session...";
       submitWaiterCall.disabled = true;
-
-      // 0. Fetch actual table UUID from restaurant_tables based on table number
-      const { data: tableData, error: tableError } = await window.supabaseClient
-        .from('restaurant_tables')
-        .select('id')
-        .eq('table_number', tableId)
-        .single();
-
-      if (tableError || !tableData) {
-        console.error("Table Error:", tableError);
-        alert("Invalid table number. Please ensure the QR code is correct.");
-        submitWaiterCall.textContent = "Call Now";
-        submitWaiterCall.disabled = false;
-        return;
-      }
-      
-      const realTableId = tableData.id;
 
       // 1. Create or Find Session in Supabase
       const { data: sessionData, error: sessionError } = await window.supabaseClient
@@ -654,8 +581,101 @@ document.addEventListener('DOMContentLoaded', () => {
   const dishModalCal = document.getElementById('dish-modal-cal');
   const dishModalClose = document.querySelector('.dish-modal-close');
   const dishModalAdd = document.getElementById('dish-modal-add');
+  const dishModalWishlist = document.getElementById('dish-modal-wishlist');
+  const dishModalWishlistIcon = dishModalWishlist.querySelector('i');
 
   let currentDishId = null;
+
+  // === Wishlist (persisted in localStorage) ===
+  function getWishlist() {
+    try {
+      return JSON.parse(localStorage.getItem('wishlist_items')) || [];
+    } catch {
+      return [];
+    }
+  }
+
+  function isInWishlist(itemId) {
+    return getWishlist().includes(itemId);
+  }
+
+  function toggleWishlist(itemId) {
+    const list = getWishlist();
+    const index = list.indexOf(itemId);
+    if (index === -1) {
+      list.push(itemId);
+    } else {
+      list.splice(index, 1);
+    }
+    localStorage.setItem('wishlist_items', JSON.stringify(list));
+    renderWishlistBadge();
+    return index === -1; // true if the item was just added
+  }
+
+  function renderWishlistState(itemId) {
+    const active = isInWishlist(itemId);
+    dishModalWishlist.classList.toggle('active', active);
+    dishModalWishlistIcon.className = active ? 'ph-fill ph-heart' : 'ph ph-heart';
+  }
+
+  function renderWishlistBadge() {
+    const count = getWishlist().length;
+    wishlistBadge.textContent = count;
+    wishlistBadge.classList.toggle('hidden', count === 0);
+  }
+
+  function renderWishlistModal() {
+    const items = getWishlist().map(findItemById).filter(Boolean);
+    wishlistItemsList.innerHTML = '';
+    wishlistEmptyState.classList.toggle('hidden', items.length > 0);
+
+    items.forEach(item => {
+      const row = document.createElement('div');
+      row.className = 'wishlist-item';
+      row.innerHTML = `
+        <div class="wishlist-item-img" style="background-image: url('${item.image}')"></div>
+        <div class="wishlist-item-info">
+          <h4>${item.name}</h4>
+          <span class="price">${CONFIG.CURRENCY}${item.price}</span>
+        </div>
+        <div class="wishlist-item-actions">
+          <button class="wishlist-remove-btn" data-id="${item.id}" aria-label="Remove from wishlist">
+            <i class="ph-fill ph-heart"></i>
+          </button>
+          <button class="wishlist-add-btn" data-id="${item.id}" aria-label="Add to order">
+            <i class="ph ph-plus"></i>
+          </button>
+        </div>
+      `;
+      wishlistItemsList.appendChild(row);
+    });
+  }
+
+  wishlistNavBtn.addEventListener('click', () => {
+    renderWishlistModal();
+    wishlistModal.classList.add('active');
+  });
+
+  closeWishlistModal.addEventListener('click', () => {
+    wishlistModal.classList.remove('active');
+  });
+
+  wishlistItemsList.addEventListener('click', (e) => {
+    const removeBtn = e.target.closest('.wishlist-remove-btn');
+    const addBtn = e.target.closest('.wishlist-add-btn');
+
+    if (removeBtn) {
+      const id = parseInt(removeBtn.getAttribute('data-id'));
+      toggleWishlist(id);
+      if (currentDishId === id) renderWishlistState(id);
+      renderWishlistModal();
+    } else if (addBtn) {
+      const id = parseInt(addBtn.getAttribute('data-id'));
+      addToCart(id);
+      if (window.updateCartUI) window.updateCartUI();
+      showToast('Item added to order!');
+    }
+  });
 
   function openDishModal(item) {
     currentDishId = item.id;
@@ -665,16 +685,24 @@ document.addEventListener('DOMContentLoaded', () => {
     // ensure price defaults properly based on config
     const priceStr = typeof CONFIG !== 'undefined' ? `${CONFIG.CURRENCY}${item.price}` : `₹${item.price}`;
     dishModalPrice.textContent = priceStr;
-    
+
     // Generate static looking random calories
     const fakeCal = Math.floor(Math.random() * 350) + 150;
     dishModalCal.innerHTML = `<i class="ph-fill ph-fire"></i> ${fakeCal} kcal`;
+
+    renderWishlistState(item.id);
 
     dishModal.classList.add('active');
   }
 
   dishModalClose.addEventListener('click', () => {
     dishModal.classList.remove('active');
+  });
+
+  dishModalWishlist.addEventListener('click', () => {
+    if (currentDishId == null) return;
+    toggleWishlist(currentDishId);
+    renderWishlistState(currentDishId);
   });
 
   dishModalAdd.addEventListener('click', () => {

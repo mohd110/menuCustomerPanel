@@ -215,6 +215,17 @@ document.addEventListener('DOMContentLoaded', () => {
     setupEventListeners();
     setupDragScroll(categoryContainer);
 
+    // Resume Call Waiter Cooldown if it exists
+    const storedCooldownEnd = localStorage.getItem('call_waiter_cooldown_end');
+    if (storedCooldownEnd) {
+      const endTime = parseInt(storedCooldownEnd, 10);
+      if (endTime > Date.now()) {
+        startCooldown(endTime);
+      } else {
+        localStorage.removeItem('call_waiter_cooldown_end');
+      }
+    }
+
     // Check if there is a table in the URL and if it matches the current session
     const realTableId = await resolveTableFromUrl();
 
@@ -627,22 +638,120 @@ document.addEventListener('DOMContentLoaded', () => {
       });
     }
 
+    // Input Restrictions for Waiter Form
+    if (waiterPhoneInput) {
+      waiterPhoneInput.addEventListener('input', function(e) {
+        this.value = this.value.replace(/\D/g, ''); // only digits
+        if (this.value.length > 10) {
+          this.value = this.value.slice(0, 10);
+        }
+        
+        // Clear error visually when typing
+        const phoneWrapper = this.closest('.input-wrapper');
+        const phoneErrorMsg = document.getElementById('phone-error-msg');
+        if (phoneWrapper) phoneWrapper.classList.remove('error');
+        if (phoneErrorMsg) phoneErrorMsg.style.display = 'none';
+      });
+    }
+
+    if (waiterGuestInput) {
+      waiterGuestInput.addEventListener('input', function(e) {
+        this.value = this.value.replace(/\D/g, ''); // only digits
+        
+        if (this.value !== '') {
+          let val = parseInt(this.value, 10);
+          if (val > 12) {
+            this.value = '12'; // Clamp to 12
+            
+            // Trigger shake and show error
+            const guestWrapper = this.closest('.input-wrapper');
+            const guestErrorMsg = document.getElementById('guest-error-msg');
+            if (guestWrapper) {
+              guestWrapper.classList.remove('error');
+              void guestWrapper.offsetWidth;
+              guestWrapper.classList.add('error');
+            }
+            if (guestErrorMsg) {
+              guestErrorMsg.textContent = 'Maximum 12 guests allowed.';
+              guestErrorMsg.style.display = 'block';
+            }
+          } else {
+             // Clear error if valid
+             const guestWrapper = this.closest('.input-wrapper');
+             const guestErrorMsg = document.getElementById('guest-error-msg');
+             if (guestWrapper) guestWrapper.classList.remove('error');
+             if (guestErrorMsg) guestErrorMsg.style.display = 'none';
+          }
+        }
+      });
+    }
+
     // Submit Waiter Call Form
     submitWaiterCall.addEventListener('click', async () => {
       const customerName = waiterNameInput.value;
       const phoneNumber = waiterPhoneInput.value;
       const guestCount = parseInt(waiterGuestInput.value) || 1;
 
-      if (!customerName || !phoneNumber) {
-        alert("Please fill in all required fields.");
-        return;
+      // Reset errors
+      const nameWrapper = waiterNameInput.closest('.input-wrapper');
+      const phoneWrapper = waiterPhoneInput.closest('.input-wrapper');
+      const guestWrapper = waiterGuestInput.closest('.input-wrapper');
+      
+      const nameErrorMsg = document.getElementById('name-error-msg');
+      const phoneErrorMsg = document.getElementById('phone-error-msg');
+      const guestErrorMsg = document.getElementById('guest-error-msg');
+      
+      [nameWrapper, phoneWrapper, guestWrapper].forEach(wrapper => {
+        if (wrapper) {
+          wrapper.classList.remove('error');
+          void wrapper.offsetWidth; // trigger reflow
+        }
+      });
+      
+      if (nameErrorMsg) nameErrorMsg.style.display = 'none';
+      if (phoneErrorMsg) phoneErrorMsg.style.display = 'none';
+      if (guestErrorMsg) guestErrorMsg.style.display = 'none';
+
+      let hasError = false;
+
+      // Name validation
+      if (!customerName.trim()) {
+        if (nameWrapper) nameWrapper.classList.add('error');
+        if (nameErrorMsg) {
+          nameErrorMsg.textContent = 'Please enter your name.';
+          nameErrorMsg.style.display = 'block';
+        }
+        hasError = true;
       }
+
+      // Phone validation (exactly 10 digits)
+      const phoneRegex = /^\d{10}$/;
+      if (!phoneRegex.test(phoneNumber)) {
+        if (phoneWrapper) phoneWrapper.classList.add('error');
+        if (phoneErrorMsg) {
+          phoneErrorMsg.textContent = 'Please enter a valid 10-digit phone number.';
+          phoneErrorMsg.style.display = 'block';
+        }
+        hasError = true;
+      }
+
+      // Guest count validation (min 1, max 12)
+      if (guestCount < 1 || guestCount > 12 || isNaN(guestCount)) {
+        if (guestWrapper) guestWrapper.classList.add('error');
+        if (guestErrorMsg) {
+          guestErrorMsg.textContent = 'Maximum 12 guests allowed.';
+          guestErrorMsg.style.display = 'block';
+        }
+        hasError = true;
+      }
+
+      if (hasError) return;
 
       // Table comes from the QR code URL, not a manual selection
       const realTableId = resolvedTableId || await resolveTableFromUrl();
 
       if (!realTableId) {
-        alert("Unable to detect your table. Please scan the QR code at your table to continue.");
+        if (typeof showToast === 'function') showToast("Unable to detect table. Scan QR code.");
         return;
       }
 
@@ -664,8 +773,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
       if (sessionError) {
         console.error("Session Error:", sessionError);
-        alert("Failed to create session.");
-        submitWaiterCall.textContent = "Call Now";
+        if (typeof showToast === 'function') showToast("Failed to create session.");
+        submitWaiterCall.textContent = "Submit";
         submitWaiterCall.disabled = false;
         return;
       }
@@ -681,16 +790,170 @@ document.addEventListener('DOMContentLoaded', () => {
 
       // Close modal
       waiterModal.classList.remove('active');
-      submitWaiterCall.textContent = "Call Now";
+      submitWaiterCall.textContent = "Submit";
       submitWaiterCall.disabled = false;
 
       // Initialize Realtime
       subscribeToWaiterStatus();
       subscribeToOrderUpdates();
-
-      // 3. Create Waiter Call
-      await createWaiterCall();
     });
+
+    // ==============================================
+    // SOS / COMPLAIN LOGIC
+    // ==============================================
+    const resolveSosBtn = document.getElementById('resolve-sos-btn');
+    const sosBtn = document.getElementById('sos-btn');
+    const sosModal = document.getElementById('sos-modal');
+    const closeSosModal = document.getElementById('close-sos-modal');
+    const submitSosBtn = document.getElementById('submit-sos');
+    const sosReasonInput = document.getElementById('sos-reason-input');
+    const sosOtherReasonGroup = document.getElementById('sos-other-reason-group');
+    const sosOtherReasonInput = document.getElementById('sos-other-reason-input');
+
+    let sosCooldown = false;
+    let activeSosCallId = localStorage.getItem('active_sos_call_id') || null;
+
+    function updateSosUi() {
+      if (activeSosCallId) {
+        if (sosBtn) sosBtn.classList.add('hidden');
+        if (resolveSosBtn) resolveSosBtn.classList.remove('hidden');
+      } else {
+        if (sosBtn) sosBtn.classList.remove('hidden');
+        if (resolveSosBtn) resolveSosBtn.classList.add('hidden');
+      }
+    }
+    
+    updateSosUi();
+
+    if (sosReasonInput) {
+      sosReasonInput.addEventListener('change', (e) => {
+        if (e.target.value === 'Other') {
+          sosOtherReasonGroup.style.display = 'block';
+        } else {
+          sosOtherReasonGroup.style.display = 'none';
+        }
+      });
+    }
+
+    if (sosBtn) {
+      sosBtn.addEventListener('click', () => {
+        if (sosCooldown) return;
+
+        // If no table is resolved, show table number popup first
+        if (!resolvedTableId) {
+          showTableNumberPopup();
+          return;
+        }
+
+        if (!window.currentSession) {
+          alert("Please start a session (by clicking 'Call Waiter' or scanning the QR code) before sending an SOS.");
+          return;
+        }
+        sosModal.classList.add('active');
+      });
+    }
+
+    if (closeSosModal) {
+      closeSosModal.addEventListener('click', () => {
+        sosModal.classList.remove('active');
+      });
+    }
+
+    if (submitSosBtn) {
+      submitSosBtn.addEventListener('click', async () => {
+        let reason = sosReasonInput.value;
+        if (!reason) {
+          alert("Please select a reason.");
+          return;
+        }
+        if (reason === 'Other') {
+          reason = sosOtherReasonInput.value;
+          if (!reason.trim()) {
+            alert("Please specify the reason.");
+            return;
+          }
+        }
+
+        submitSosBtn.textContent = "Sending...";
+        submitSosBtn.disabled = true;
+
+        const { data, error } = await window.supabaseClient
+          .from('waiter_calls')
+          .insert({
+            session_id: window.currentSession.id,
+            table_id: window.currentSession.table_id,
+            customer_name: `${window.currentSession.customer_name} (SOS: ${reason})`,
+            request_status: 'pending'
+          })
+          .select()
+          .single();
+
+        if (error) {
+          console.error("SOS Error:", error);
+          alert("Failed to send SOS. Please try again.");
+        } else {
+          showToast("SOS sent! A manager will attend to you.");
+          
+          if (data && data.id) {
+            activeSosCallId = data.id;
+            localStorage.setItem('active_sos_call_id', data.id);
+            updateSosUi();
+          }
+
+          sosModal.classList.remove('active');
+          sosReasonInput.value = "";
+          sosOtherReasonGroup.style.display = "none";
+          sosOtherReasonInput.value = "";
+          
+          sosCooldown = true;
+          sosBtn.classList.add('disabled');
+          sosBtn.querySelector('span').textContent = 'Wait 60s...';
+          
+          let time = 60;
+          const interval = setInterval(() => {
+            time--;
+            if (time <= 0) {
+              clearInterval(interval);
+              sosCooldown = false;
+              sosBtn.classList.remove('disabled');
+              sosBtn.querySelector('span').textContent = 'SOS / Complain';
+            } else {
+              sosBtn.querySelector('span').textContent = `Wait ${time}s...`;
+            }
+          }, 1000);
+        }
+
+        submitSosBtn.textContent = "Send SOS";
+        submitSosBtn.disabled = false;
+      });
+    }
+
+    if (resolveSosBtn) {
+      resolveSosBtn.addEventListener('click', async () => {
+        if (!activeSosCallId) return;
+
+        resolveSosBtn.textContent = "Resolving...";
+        resolveSosBtn.disabled = true;
+
+        const { error } = await window.supabaseClient
+          .from('waiter_calls')
+          .update({ request_status: 'completed' })
+          .eq('id', activeSosCallId);
+
+        if (error) {
+          console.error("Resolve SOS Error:", error);
+          alert("Failed to resolve SOS. Please try again.");
+        } else {
+          showToast("Issue marked as resolved. Thank you!");
+          activeSosCallId = null;
+          localStorage.removeItem('active_sos_call_id');
+          updateSosUi();
+        }
+
+        resolveSosBtn.innerHTML = '<i class="ph-fill ph-check-circle"></i><span>Issue Resolved</span>';
+        resolveSosBtn.disabled = false;
+      });
+    }
 
     // Navigation and Cart Actions
     viewCartBtn.addEventListener('click', () => {
@@ -741,23 +1004,33 @@ document.addEventListener('DOMContentLoaded', () => {
     startCooldown();
   }
 
-  function startCooldown() {
+  function startCooldown(existingEndTime = null) {
+    let endTime = existingEndTime;
+    
+    if (!endTime) {
+      endTime = Date.now() + 30000;
+      localStorage.setItem('call_waiter_cooldown_end', endTime);
+    }
+
     callCooldown = true;
     callWaiterBtn.classList.add('disabled');
-    callWaiterBtn.querySelector('span').textContent = 'Wait 30s...';
     
-    let time = 30;
-    const interval = setInterval(() => {
-      time--;
-      if (time <= 0) {
+    const updateButton = () => {
+      const remainingTime = Math.ceil((endTime - Date.now()) / 1000);
+      
+      if (remainingTime <= 0) {
         clearInterval(interval);
         callCooldown = false;
         callWaiterBtn.classList.remove('disabled');
         callWaiterBtn.querySelector('span').textContent = 'Call Waiter';
+        localStorage.removeItem('call_waiter_cooldown_end');
       } else {
-        callWaiterBtn.querySelector('span').textContent = `Wait ${time}s...`;
+        callWaiterBtn.querySelector('span').textContent = `Wait ${remainingTime}s...`;
       }
-    }, 1000);
+    };
+    
+    updateButton();
+    const interval = setInterval(updateButton, 1000);
   }
 
   function showToast(msg) {

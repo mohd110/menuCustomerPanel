@@ -291,7 +291,7 @@ header {
 }
 
 .item-info {
-  padding: 14px 16px;
+  padding: 14px 48px 14px 16px;
   display: flex;
   flex-direction: column;
   flex-grow: 1;
@@ -384,6 +384,87 @@ header {
   60%  { transform: rotate(-15deg); }
   80%  { transform: rotate(10deg); }
   100% { transform: rotate(0deg); }
+}
+
+/* =====================================================
+   SOS FLOATING BUTTON
+   ===================================================== */
+.sos-btn {
+  position: fixed;
+  bottom: 84px; /* Above the call waiter btn */
+  right: 22px;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--error);
+  color: var(--text-on-primary);
+  font-family: var(--font-sans);
+  font-size: 14px;
+  font-weight: 600;
+  padding: 14px 22px;
+  border-radius: var(--radius-full);
+  border: none;
+  cursor: pointer;
+  box-shadow: 0 8px 30px rgba(186, 26, 26, 0.40);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  letter-spacing: 0.01em;
+}
+
+.sos-btn i { font-size: 18px; }
+
+.sos-btn:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 12px 36px rgba(186, 26, 26, 0.50);
+}
+
+.sos-btn:active { transform: scale(0.93); }
+
+.sos-btn.disabled {
+  opacity: 0.6;
+  pointer-events: none;
+}
+
+.sos-btn.hidden {
+  display: none;
+}
+
+/* =====================================================
+   RESOLVE SOS FLOATING BUTTON
+   ===================================================== */
+.resolve-sos-btn {
+  position: fixed;
+  bottom: 84px;
+  right: 22px;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #198754; /* Green */
+  color: var(--text-on-primary);
+  font-family: var(--font-sans);
+  font-size: 14px;
+  font-weight: 600;
+  padding: 14px 22px;
+  border-radius: var(--radius-full);
+  border: none;
+  cursor: pointer;
+  box-shadow: 0 8px 30px rgba(25, 135, 84, 0.40);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  letter-spacing: 0.01em;
+}
+
+.resolve-sos-btn i { font-size: 18px; }
+
+.resolve-sos-btn:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 12px 36px rgba(25, 135, 84, 0.50);
+}
+
+.resolve-sos-btn:active { transform: scale(0.93); }
+
+.resolve-sos-btn.hidden {
+  display: none;
 }
 
 /* Toast */
@@ -633,6 +714,22 @@ header {
   align-items: center;
   border-bottom: 1px solid var(--outline-subtle);
   padding-bottom: 10px;
+}
+
+@keyframes error-shake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-5px); }
+  50% { transform: translateX(5px); }
+  75% { transform: translateX(-5px); }
+}
+
+.input-wrapper.error {
+  border-bottom-color: var(--error);
+  animation: error-shake 0.3s ease;
+}
+
+.input-wrapper.error i {
+  color: var(--error);
 }
 
 .input-icon {
@@ -978,6 +1075,8 @@ input::placeholder { color: var(--outline-subtle); }
   background: var(--primary-rich);
   color: var(--text-on-primary);
   border: none;
+  /* TEMPORARILY HIDDEN — remove this line to re-enable the "+" Add button */
+  display: none;
 }
 
 .wishlist-empty-state {
@@ -1206,15 +1305,16 @@ input::placeholder { color: var(--outline-subtle); }
 
 .item-wishlist-btn {
   position: absolute;
-  top: 8px;
-  left: 8px;
+  top: 50%;
+  right: 16px;
+  transform: translateY(-50%);
   width: 32px;
   height: 32px;
   border-radius: var(--radius-full);
   background: rgba(255, 255, 255, 0.85);
   backdrop-filter: blur(4px);
   -webkit-backdrop-filter: blur(4px);
-  border: none;
+  border: 1px solid var(--outline-subtle);
   color: var(--text-muted);
   font-size: 16px;
   display: flex;
@@ -1227,12 +1327,13 @@ input::placeholder { color: var(--outline-subtle); }
 }
 
 .item-wishlist-btn:active {
-  transform: scale(0.85);
+  transform: translateY(-50%) scale(0.85);
 }
 
 .item-wishlist-btn.active {
   color: var(--error);
   background: rgba(255, 255, 255, 0.95);
+  border-color: rgba(186, 26, 26, 0.3); /* subtle red border for active state */
 }
 
 @keyframes heart-pop {

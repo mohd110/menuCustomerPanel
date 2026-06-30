@@ -61,6 +61,18 @@
         <span id="cart-badge" class="cart-badge">0</span>
       </button>
 
+      <!-- Floating Issue Resolved Button -->
+      <button id="resolve-sos-btn" class="resolve-sos-btn hidden" aria-label="Issue Resolved">
+        <i class="ph-fill ph-check-circle"></i>
+        <span>Issue Resolved</span>
+      </button>
+
+      <!-- Floating SOS Button -->
+      <button id="sos-btn" class="sos-btn" aria-label="SOS / Complain">
+        <i class="ph-fill ph-warning-circle"></i>
+        <span>SOS / Complain</span>
+      </button>
+
       <!-- Floating Call Waiter Button -->
       <button id="call-waiter-btn" class="call-waiter-btn" aria-label="Call Waiter">
         <i class="ph-fill ph-bell-ringing"></i>
@@ -293,6 +305,7 @@
               <i class="ph-fill ph-user input-icon"></i>
               <input type="text" id="waiter-name-input" placeholder="Enter your name" required>
             </div>
+            <span class="error-msg" id="name-error-msg" style="color: #ba1a1a; font-size: 11px; display: none; margin-top: 4px;"></span>
           </div>
 
           <div class="form-group">
@@ -301,6 +314,7 @@
               <i class="ph-fill ph-phone input-icon"></i>
               <input type="tel" id="waiter-phone-input" placeholder="Enter number" required>
             </div>
+            <span class="error-msg" id="phone-error-msg" style="color: #ba1a1a; font-size: 11px; display: none; margin-top: 4px;"></span>
           </div>
 
           <div class="form-group">
@@ -309,10 +323,11 @@
               <i class="ph-fill ph-users input-icon"></i>
               <input type="number" id="waiter-guest-input" placeholder="Number of guests" value="1" min="1" required>
             </div>
+            <span class="error-msg" id="guest-error-msg" style="color: #ba1a1a; font-size: 11px; display: none; margin-top: 4px;"></span>
           </div>
 
           <div class="dish-modal-bottom" style="margin-top: 20px; border-top: none; padding-top: 0;">
-            <button id="submit-waiter-call" class="add-to-order-btn" style="width: 100%;">Call Now</button>
+            <button id="submit-waiter-call" class="add-to-order-btn" style="width: 100%;">Submit</button>
           </div>
         </div>
       </div>
@@ -337,6 +352,47 @@
           <p id="wishlist-empty-state" class="wishlist-empty-state hidden">
             Your wishlist is empty. Tap the heart icon on a dish to save it here.
           </p>
+        </div>
+      </div>
+    </div>
+
+    <!-- ==============================================
+         6. SOS / COMPLAIN MODAL
+         ============================================== -->
+    <div id="sos-modal" class="modal-overlay">
+      <div class="dish-modal-content" style="max-height: 90vh; overflow-y: auto;">
+        <div class="dish-modal-close" id="close-sos-modal">
+          <i class="ph ph-x"></i>
+        </div>
+        <div class="dish-modal-info" style="padding-top: 40px;">
+          <h2 style="color: #ba1a1a;">SOS / Complain</h2>
+          <p>Please select a reason so we can assist you immediately.</p>
+          
+          <div class="form-group" style="margin-top: 20px;">
+            <label>REASON</label>
+            <div class="input-wrapper">
+              <i class="ph-fill ph-warning-circle input-icon" style="color: #ba1a1a;"></i>
+              <select id="sos-reason-input" required>
+                <option value="">Select a reason...</option>
+                <option value="Unresponsive Waiter">Unresponsive Waiter</option>
+                <option value="Food Quality Issue">Food Quality Issue</option>
+                <option value="Cleanliness Issue">Cleanliness Issue</option>
+                <option value="Emergency">Emergency</option>
+                <option value="Other">Other</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="form-group" id="sos-other-reason-group" style="display: none;">
+            <label>SPECIFY REASON</label>
+            <div class="input-wrapper">
+              <input type="text" id="sos-other-reason-input" placeholder="Type your reason here">
+            </div>
+          </div>
+
+          <div class="dish-modal-bottom" style="margin-top: 20px; border-top: none; padding-top: 0;">
+            <button id="submit-sos" class="add-to-order-btn" style="width: 100%; background-color: #ba1a1a;">Send SOS</button>
+          </div>
         </div>
       </div>
     </div>

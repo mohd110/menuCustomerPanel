@@ -20,6 +20,11 @@ document.addEventListener('DOMContentLoaded', () => {
   const waiterPhoneInput = document.getElementById('waiter-phone-input');
   const waiterGuestInput = document.getElementById('waiter-guest-input');
 
+  // Table Number Modal Elements
+  const tableNumberModal = document.getElementById('table-number-modal');
+  const tableNumberInput = document.getElementById('table-number-input');
+  const tableNumberSubmit = document.getElementById('table-number-submit');
+
   // Wishlist Elements
   const wishlistNavBtn = document.getElementById('wishlist-nav-btn');
   const wishlistBadge = document.getElementById('wishlist-badge');
@@ -27,6 +32,28 @@ document.addEventListener('DOMContentLoaded', () => {
   const closeWishlistModal = document.getElementById('close-wishlist-modal');
   const wishlistItemsList = document.getElementById('wishlist-items-list');
   const wishlistEmptyState = document.getElementById('wishlist-empty-state');
+
+  // Sections
+  const mainMenuSection = document.getElementById('main-menu-section');
+  const checkoutSection = document.getElementById('checkout-section');
+
+  // Floating Cart Button
+  const viewCartBtn = document.getElementById('view-cart-btn');
+  const cartBadge = document.getElementById('cart-badge');
+
+  // Added Items Page Elements
+  const backToMenuBtn = document.getElementById('back-to-menu');
+  const clearCartBtn = document.getElementById('clear-cart-btn');
+  const addedItemsCount = document.getElementById('added-items-count');
+  const addedItemsTbody = document.getElementById('added-items-tbody');
+  const cartEmptyState = document.getElementById('cart-empty-state');
+  const browseMenuBtn = document.getElementById('browse-menu-btn');
+  const orderTotalCard = document.getElementById('order-total-card');
+  const orderSubtotal = document.getElementById('order-subtotal');
+  const orderTax = document.getElementById('order-tax');
+  const checkoutTotal = document.getElementById('checkout-total');
+  const deliveryDetailsCard = document.getElementById('delivery-details-card');
+  const checkoutAction = document.getElementById('checkout-action');
 
   const MACRO_CATEGORIES = [
     {
@@ -71,12 +98,27 @@ document.addEventListener('DOMContentLoaded', () => {
 
   let activeMacroCategoryIndex = 0;
 
-  // Table resolved from the QR/table URL param, cached for the session-creation form
+  // Table resolved from the QR/table URL param or popup, cached for the session-creation form
   let resolvedTableId = null;
+
+  // Get saved table number from localStorage
+  function getSavedTableNumber() {
+    return localStorage.getItem('customer_table_number') || null;
+  }
+
+  // Save table number to localStorage
+  function saveTableNumber(num) {
+    localStorage.setItem('customer_table_number', num);
+  }
 
   async function resolveTableFromUrl() {
     const urlParams = new URLSearchParams(window.location.search);
     let tableId = urlParams.get('table');
+    
+    // Also check localStorage if not in URL
+    if (!tableId) {
+      tableId = getSavedTableNumber();
+    }
     if (!tableId) return null;
 
     if (!tableId.toString().startsWith('T-')) {
@@ -95,6 +137,75 @@ document.addEventListener('DOMContentLoaded', () => {
     resolvedTableId = tableData.id;
     return tableData.id;
   }
+
+  // Show table number popup
+  function showTableNumberPopup() {
+    tableNumberModal.classList.add('active');
+    setTimeout(() => tableNumberInput.focus(), 350);
+  }
+
+  // Handle table number submission
+  tableNumberSubmit.addEventListener('click', async () => {
+    const inputVal = tableNumberInput.value.trim();
+    if (!inputVal) {
+      const wrapper = tableNumberInput.closest('.table-input-wrapper');
+      wrapper.classList.add('error');
+      setTimeout(() => wrapper.classList.remove('error'), 500);
+      return;
+    }
+
+    const tableNum = parseInt(inputVal, 10);
+    if (isNaN(tableNum) || tableNum < 1) {
+      const wrapper = tableNumberInput.closest('.table-input-wrapper');
+      wrapper.classList.add('error');
+      setTimeout(() => wrapper.classList.remove('error'), 500);
+      return;
+    }
+
+    const tableStr = `T-${tableNum.toString().padStart(2, '0')}`;
+    tableNumberSubmit.querySelector('span').textContent = 'Finding table...';
+    tableNumberSubmit.disabled = true;
+
+    const { data: tableData } = await window.supabaseClient
+      .from('restaurant_tables')
+      .select('id')
+      .eq('table_number', tableStr)
+      .single();
+
+    if (!tableData) {
+      // Table not found in DB — show error
+      const wrapper = tableNumberInput.closest('.table-input-wrapper');
+      wrapper.classList.add('error');
+      setTimeout(() => wrapper.classList.remove('error'), 500);
+      tableNumberSubmit.querySelector('span').textContent = 'Continue';
+      tableNumberSubmit.disabled = false;
+      showToast('Table not found. Please check the number.');
+      return;
+    }
+
+    // Save the table number and resolve
+    saveTableNumber(tableStr);
+    resolvedTableId = tableData.id;
+
+    tableNumberModal.classList.remove('active');
+    tableNumberSubmit.querySelector('span').textContent = 'Continue';
+    tableNumberSubmit.disabled = false;
+
+    showToast(`Table ${tableStr} set!`);
+
+    // Prompt for session details right away if no session exists
+    if (!window.currentSession) {
+      waiterModal.classList.add('active');
+    }
+  });
+
+  // Allow Enter key to submit
+  tableNumberInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      tableNumberSubmit.click();
+    }
+  });
 
   // === Initialize ===
   async function init() {
@@ -132,6 +243,9 @@ document.addEventListener('DOMContentLoaded', () => {
           window.saveSession(sessionData);
         }
       }
+    } else {
+      // No table found in URL or localStorage — show table number popup
+      showTableNumberPopup();
     }
 
     // Initialize Supabase realtime if session exists, otherwise prompt the
@@ -139,7 +253,8 @@ document.addEventListener('DOMContentLoaded', () => {
     if (window.currentSession) {
       subscribeToWaiterStatus();
       subscribeToOrderUpdates();
-    } else {
+    } else if (realTableId) {
+      // If table is set but no session exists, show the waiter call (session details) popup
       waiterModal.classList.add('active');
     }
   }
@@ -228,11 +343,18 @@ document.addEventListener('DOMContentLoaded', () => {
         itemCard.className = 'item-card';
         itemCard.style.cursor = 'pointer';
         
-        itemCard.addEventListener('click', () => {
+        itemCard.addEventListener('click', (e) => {
+          // Don't open modal if wishlist button was clicked
+          if (e.target.closest('.item-wishlist-btn')) return;
           openDishModal(item);
         });
+
+        const wishlisted = isInWishlist(item.id);
         
         itemCard.innerHTML = `
+          <button class="item-wishlist-btn ${wishlisted ? 'active' : ''}" data-id="${item.id}" aria-label="Toggle wishlist">
+            <i class="${wishlisted ? 'ph-fill' : 'ph'} ph-heart"></i>
+          </button>
           <div class="item-img" style="background-image: url('${item.image}')"></div>
           <div class="item-info">
             <div>
@@ -265,6 +387,24 @@ document.addEventListener('DOMContentLoaded', () => {
         renderItems(activeMacroCategoryIndex); // Update specific item UI
       });
     });
+
+    // Attach wishlist toggle listeners on item cards
+    document.querySelectorAll('.item-wishlist-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const id = parseInt(btn.getAttribute('data-id'));
+        const added = toggleWishlist(id);
+        // Update icon
+        const icon = btn.querySelector('i');
+        btn.classList.toggle('active', added);
+        icon.className = added ? 'ph-fill ph-heart' : 'ph ph-heart';
+        // Pop animation
+        btn.classList.add('pop');
+        btn.addEventListener('animationend', () => btn.classList.remove('pop'), { once: true });
+        // If the dish modal has this item open, sync the state
+        if (currentDishId === id) renderWishlistState(id);
+      });
+    });
   }
 
   // Required globally to be called from cart.js
@@ -273,56 +413,131 @@ document.addEventListener('DOMContentLoaded', () => {
     cartBadge.textContent = count;
     
     if (count > 0) {
-      cartBadge.classList.add('visible');
-      viewCartBtn.querySelector('.cart-text').innerHTML = `View Cart &bull; ${count} Item${count > 1 ? 's' : ''}`;
+      viewCartBtn.classList.remove('hidden');
     } else {
-      cartBadge.classList.remove('visible');
-      // Reset button text back to default
-      viewCartBtn.querySelector('.cart-text').innerHTML = 'View Cart';
-      if (checkoutSection.classList.contains('active')) {
-        hideCheckout();
-      }
+      viewCartBtn.classList.add('hidden');
+    }
+
+    // Refresh checkout view if active
+    if (checkoutSection.classList.contains('active')) {
+      renderCheckout();
     }
   };
 
-  // Render the checkout screen list
+  // Render the checkout/added items screen list as a table
   function renderCheckout() {
     const currentCart = getCartItems();
-    checkoutItemsList.innerHTML = '';
+    addedItemsTbody.innerHTML = '';
     
+    // Update items summary text
+    const totalCount = getCartCount();
+    addedItemsCount.textContent = `${totalCount} item${totalCount !== 1 ? 's' : ''} in your order`;
+
+    const hasItems = currentCart.length > 0;
+    
+    // Toggle table wrapper and other cards visibility
+    const tableEl = document.getElementById('added-items-table');
+    if (hasItems) {
+      tableEl.style.display = 'table';
+      cartEmptyState.style.display = 'none';
+      orderTotalCard.style.display = 'block';
+      deliveryDetailsCard.style.display = 'block';
+      checkoutAction.style.display = 'block';
+    } else {
+      tableEl.style.display = 'none';
+      cartEmptyState.style.display = 'flex';
+      orderTotalCard.style.display = 'none';
+      deliveryDetailsCard.style.display = 'none';
+      checkoutAction.style.display = 'none';
+    }
+
     currentCart.forEach(item => {
-      const itemEl = document.createElement('div');
-      itemEl.className = 'checkout-item';
-      itemEl.innerHTML = `
-        <div class="checkout-item-info">
-          <h4>${item.name}</h4>
-          <div class="checkout-item-details">
-            <span>${item.qty}x Quantity</span>
-            <button class="remove-item-btn" data-id="${item.id}">
-              <i class="ph ph-trash"></i> Remove
+      // Find full details from MENU_DATA to get the image
+      const fullItem = findItemById(item.id);
+      const imageSrc = fullItem ? fullItem.image : 'assets/images/logo.png';
+
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td class="td-item">
+          <div class="table-item-detail">
+            <div class="table-item-img" style="background-image: url('${imageSrc}')"></div>
+            <div class="table-item-info">
+              <span class="table-item-name">${item.name}</span>
+              <button class="table-edit-btn" data-id="${item.id}">
+                <i class="ph ph-note-pencil"></i> Edit
+              </button>
+            </div>
+          </div>
+        </td>
+        <td class="td-price">${CONFIG.CURRENCY}${item.price}</td>
+        <td class="td-qty">
+          <div class="qty-control-table">
+            <button class="qty-btn-table dec-btn" data-id="${item.id}">
+              <i class="ph ph-minus"></i>
+            </button>
+            <span class="qty-val-table">${item.qty}</span>
+            <button class="qty-btn-table inc-btn" data-id="${item.id}">
+              <i class="ph ph-plus"></i>
             </button>
           </div>
-        </div>
-        <div class="checkout-item-price">${CONFIG.CURRENCY}${item.price * item.qty}</div>
+        </td>
+        <td class="td-total">${CONFIG.CURRENCY}${item.price * item.qty}</td>
+        <td class="td-actions">
+          <button class="table-delete-btn" data-id="${item.id}" aria-label="Delete item">
+            <i class="ph-fill ph-trash"></i>
+          </button>
+        </td>
       `;
-      checkoutItemsList.appendChild(itemEl);
+      addedItemsTbody.appendChild(tr);
     });
 
-    // Attach listeners for remove buttons
-    checkoutItemsList.querySelectorAll('.remove-item-btn').forEach(btn => {
+    // Attach row button event listeners
+    addedItemsTbody.querySelectorAll('.dec-btn').forEach(btn => {
       btn.addEventListener('click', () => {
         const id = parseInt(btn.getAttribute('data-id'));
-        deleteFromCart(id);
-        renderCheckout(); // Re-render checkout list
+        removeFromCart(id);
+        renderCheckout();
       });
     });
 
-    checkoutTotal.textContent = `${CONFIG.CURRENCY}${getCartTotal()}`;
+    addedItemsTbody.querySelectorAll('.inc-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const id = parseInt(btn.getAttribute('data-id'));
+        addToCart(id);
+        renderCheckout();
+      });
+    });
+
+    addedItemsTbody.querySelectorAll('.table-delete-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const id = parseInt(btn.getAttribute('data-id'));
+        deleteFromCart(id);
+        renderCheckout();
+      });
+    });
+
+    addedItemsTbody.querySelectorAll('.table-edit-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const id = parseInt(btn.getAttribute('data-id'));
+        const fullItem = findItemById(id);
+        if (fullItem) {
+          openDishModal(fullItem);
+        }
+      });
+    });
+
+    // Calculate subtotal, tax, total
+    const subtotal = getCartTotal();
+    const tax = Math.round(subtotal * 0.05);
+    const total = subtotal + tax;
+
+    orderSubtotal.textContent = `${CONFIG.CURRENCY}${subtotal}`;
+    orderTax.textContent = `${CONFIG.CURRENCY}${tax}`;
+    checkoutTotal.textContent = `${CONFIG.CURRENCY}${total}`;
   }
 
   // === UI Transitions ===
   function showCheckout() {
-    if (getCartCount() === 0) return;
     renderCheckout();
     mainMenuSection.classList.remove('active');
     checkoutSection.classList.add('active');
@@ -343,9 +558,15 @@ document.addEventListener('DOMContentLoaded', () => {
   let orderSubscription = null;
 
   function setupEventListeners() {
-    // Call Waiter button - Opens Modal if no session, or directly calls if session exists
+    // Call Waiter button — first ensure table is set, then session, then call
     callWaiterBtn.addEventListener('click', async () => {
       if (callCooldown) return;
+
+      // If no table is resolved, show table number popup first
+      if (!resolvedTableId) {
+        showTableNumberPopup();
+        return;
+      }
 
       if (!window.currentSession) {
         // Show modal to collect details if there's still no session
@@ -364,6 +585,12 @@ document.addEventListener('DOMContentLoaded', () => {
     const placeOrderBtn = document.getElementById('place-order-btn');
     if (placeOrderBtn) {
       placeOrderBtn.addEventListener('click', async () => {
+        // First ensure table is set
+        if (!resolvedTableId) {
+          showTableNumberPopup();
+          return;
+        }
+
         if (!window.currentSession) {
           waiterModal.classList.add('active');
           return;
@@ -463,6 +690,26 @@ document.addEventListener('DOMContentLoaded', () => {
 
       // 3. Create Waiter Call
       await createWaiterCall();
+    });
+
+    // Navigation and Cart Actions
+    viewCartBtn.addEventListener('click', () => {
+      showCheckout();
+    });
+
+    backToMenuBtn.addEventListener('click', () => {
+      hideCheckout();
+    });
+
+    clearCartBtn.addEventListener('click', () => {
+      if (confirm('Are you sure you want to clear all items from your order?')) {
+        clearCart();
+        renderCheckout();
+      }
+    });
+
+    browseMenuBtn.addEventListener('click', () => {
+      hideCheckout();
     });
   }
 

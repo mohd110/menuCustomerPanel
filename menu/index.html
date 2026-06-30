@@ -54,6 +54,13 @@
       </div>
 
 
+      <!-- Floating View Cart Button -->
+      <button id="view-cart-btn" class="view-cart-btn hidden" aria-label="View Added Items">
+        <i class="ph-fill ph-shopping-cart"></i>
+        <span class="cart-text">Added Items</span>
+        <span id="cart-badge" class="cart-badge">0</span>
+      </button>
+
       <!-- Floating Call Waiter Button -->
       <button id="call-waiter-btn" class="call-waiter-btn" aria-label="Call Waiter">
         <i class="ph-fill ph-bell-ringing"></i>
@@ -77,7 +84,7 @@
     </div>
 
     <!-- ==============================================
-         2. CHECKOUT SECTION
+         2. ADDED ITEMS SECTION
          ============================================== -->
     <div id="checkout-section" class="section">
       
@@ -86,32 +93,68 @@
         <button id="back-to-menu" aria-label="Back">
           <i class="ph ph-arrow-left"></i>
         </button>
-        <h1>Checkout</h1>
-        <span class="cf">CF</span>
+        <h1>Added Items</h1>
+        <button id="clear-cart-btn" class="clear-cart-header-btn" aria-label="Clear All">
+          <i class="ph ph-trash"></i>
+          <span>Clear</span>
+        </button>
       </div>
 
-      <!-- Banner -->
-      <div class="checkout-banner">
-        <div class="checkout-banner-content">
-          <p>CONFIRMING</p>
-          <h2>Your Order</h2>
+      <!-- Items Count Badge -->
+      <div class="added-items-summary">
+        <div class="summary-left">
+          <i class="ph-fill ph-shopping-cart"></i>
+          <span id="added-items-count">0 items in your order</span>
         </div>
       </div>
 
-      <!-- Order Summary Card -->
-      <div class="checkout-card">
-        <div id="checkout-items">
-          <!-- Injected via JS -->
+      <!-- Added Items Table -->
+      <div class="added-items-table-wrapper">
+        <table class="added-items-table" id="added-items-table">
+          <thead>
+            <tr>
+              <th class="th-item">Item</th>
+              <th class="th-price">Price</th>
+              <th class="th-qty">Qty</th>
+              <th class="th-total">Total</th>
+              <th class="th-actions"></th>
+            </tr>
+          </thead>
+          <tbody id="added-items-tbody">
+            <!-- Rendered via JS -->
+          </tbody>
+        </table>
+
+        <!-- Empty State -->
+        <div id="cart-empty-state" class="cart-empty-state">
+          <i class="ph ph-shopping-cart"></i>
+          <h3>No items added yet</h3>
+          <p>Browse the menu and tap on dishes to add them to your order.</p>
+          <button id="browse-menu-btn" class="browse-menu-btn">
+            <i class="ph ph-arrow-left"></i>
+            Browse Menu
+          </button>
         </div>
-        
-        <div class="checkout-summary">
-          <span>TOTAL AMOUNT</span>
-          <h3 id="checkout-total">₹0</h3>
+      </div>
+
+      <!-- Order Total Card -->
+      <div class="order-total-card" id="order-total-card">
+        <div class="order-total-row">
+          <span>Subtotal</span>
+          <span id="order-subtotal">₹0</span>
+        </div>
+        <div class="order-total-row">
+          <span>Tax (5%)</span>
+          <span id="order-tax">₹0</span>
+        </div>
+        <div class="order-total-row total-final">
+          <span>Total</span>
+          <span id="checkout-total">₹0</span>
         </div>
       </div>
 
       <!-- Delivery Details Card -->
-      <div class="checkout-card">
+      <div class="checkout-card" id="delivery-details-card">
         <h3 class="form-title">Delivery Details</h3>
 
         <div class="form-group">
@@ -157,8 +200,9 @@
       </div>
 
       <!-- Sticky Place Order Button -->
-      <div class="checkout-action">
+      <div class="checkout-action" id="checkout-action">
         <button id="place-order-btn">
+          <i class="ph-fill ph-check-circle"></i>
           Place Order
         </button>
       </div>
@@ -208,7 +252,31 @@
     </div>
 
     <!-- ==============================================
-         5. CALL WAITER MODAL
+         5. TABLE NUMBER POPUP
+         ============================================== -->
+    <div id="table-number-modal" class="modal-overlay">
+      <div class="table-modal-content">
+        <div class="table-modal-icon">
+          <i class="ph-fill ph-table"></i>
+        </div>
+        <h2>Welcome!</h2>
+        <p>Please enter your table number to get started</p>
+        <div class="table-input-group">
+          <label>TABLE NUMBER</label>
+          <div class="table-input-wrapper">
+            <span class="table-prefix">T-</span>
+            <input type="number" id="table-number-input" placeholder="e.g. 05" min="1" max="99" required>
+          </div>
+        </div>
+        <button id="table-number-submit" class="table-submit-btn">
+          <i class="ph-fill ph-check-circle"></i>
+          <span>Continue</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- ==============================================
+         6. CALL WAITER MODAL
          ============================================== -->
     <div id="call-waiter-modal" class="modal-overlay">
       <div class="dish-modal-content" style="max-height: 90vh; overflow-y: auto;">
@@ -251,7 +319,7 @@
     </div>
 
     <!-- ==============================================
-         6. WISHLIST MODAL
+         7. WISHLIST MODAL
          ============================================== -->
     <div id="wishlist-modal" class="modal-overlay">
       <div class="dish-modal-content" style="max-height: 85vh; overflow-y: auto;">
